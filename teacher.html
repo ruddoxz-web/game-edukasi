@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Guru - Petualangan Sains Interaktif</title>
+  <!-- Tailwind CSS & Canvas-Confetti CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+  <!-- Firebase Compat CDN -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex flex-col font-sans">
+
+  <!-- Header & Kontrol Guru -->
+  <header class="bg-slate-800 border-b border-slate-700 p-4 flex justify-between items-center px-8 shadow-lg">
+    <div>
+      <h1 class="text-2xl font-black tracking-wider text-amber-400">🏕️ PETUALANGAN PENJELAJAH SAINS</h1>
+      <p class="text-xs text-slate-400">Dashboard Siaran Proyektor Kelas (Real-Time Cloud)</p>
+    </div>
+    <div class="flex gap-4">
+      <button id="btn-start" onclick="startGame()" class="bg-emerald-600 hover:bg-emerald-500 font-bold px-6 py-2.5 rounded-xl shadow-lg transition transform active:scale-95 flex items-center gap-2">
+        <span>🚀</span> Mulai Petualangan!
+      </button>
+      <button onclick="resetGame()" class="bg-rose-700 hover:bg-rose-600 font-semibold px-4 py-2.5 rounded-xl transition text-sm">
+        Reset Sesi
+      </button>
+    </div>
+  </header>
+
+  <!-- Konten Utama: 2 Kolom (Leaderboard Sisi Kiri & Jalur Peta Sisi Kanan) -->
+  <main class="flex-1 flex overflow-hidden p-6 gap-6">
+    
+    <!-- SISI KIRI: Real-Time Leaderboard -->
+    <section class="w-1/4 bg-slate-800/80 backdrop-blur rounded-2xl p-5 border border-slate-700 flex flex-col shadow-xl">
+      <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-700">
+        <h2 class="text-lg font-bold flex items-center gap-2 text-amber-300">
+          <span>🏆</span> Papan Peringkat
+        </h2>
+        <span id="player-count" class="bg-indigo-600 text-xs font-bold px-2.5 py-1 rounded-full">0 Siswa</span>
+      </div>
+      <div id="leaderboard-list" class="flex-1 overflow-y-auto space-y-2 pr-1">
+        <!-- Render otomatis via Firebase -->
+        <p class="text-slate-500 text-sm text-center mt-10">Menunggu siswa bergabung...</p>
+      </div>
+    </section>
+
+    <!-- SISI KANAN: Lintasan Peta 10 Tenda Pos -->
+    <section class="w-3/4 bg-slate-800/80 backdrop-blur rounded-2xl p-6 border border-slate-700 flex flex-col shadow-xl">
+      <div class="flex justify-between items-center mb-6">
+        <div class="text-sm font-medium text-slate-300 flex gap-4">
+          <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-cyan-400"></span> Bab 1: Pos 1-3 (Cahaya & Bunyi)</span>
+          <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-emerald-400"></span> Bab 2: Pos 4-7 (Ekosistem)</span>
+          <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-amber-400"></span> Bab 3: Pos 8-10 (Magnet & Listrik)</span>
+        </div>
+        <div id="game-status-badge" class="bg-amber-500/20 text-amber-300 text-xs px-3 py-1 rounded-full font-bold border border-amber-500/30">
+          Status: Lobi Tunggu
+        </div>
+      </div>
+
+      <!-- Jalur Pos Visual -->
+      <div class="flex-1 relative flex flex-col justify-around bg-slate-950/50 rounded-xl p-6 border border-slate-800 overflow-hidden">
+        <!-- Garis Penghubung Pos -->
+        <div class="absolute left-10 right-10 top-1/2 -translate-y-1/2 h-3 bg-slate-700 rounded-full z-0"></div>
+
+        <!-- 11 Titik (Start + 10 Pos/Finish) -->
+        <div class="relative z-10 flex justify-between items-center px-4" id="track-nodes">
+          <!-- Diisi otomatis oleh JavaScript -->
+        </div>
+
+        <!-- Wadah Avatar Siswa yang Ditempatkan di Pos Terkait -->
+        <div class="relative z-20 w-full h-32" id="avatar-container">
+          <!-- Avatars akan diposisikan di atas koordinat pos masing-masing -->
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // ================== FIREBASE CONFIGURATION ==================
+    // GANTI DENGAN KUNCI PROYEK ANDA DARI FIREBASE CONSOLE!
+    const firebaseConfig = {
+      apiKey: "AIzaSyD-CONTOH-KEY-ANDA",
+      authDomain: "proyek-anda.firebaseapp.com",
+      databaseURL: "https://proyek-anda-default-rtdb.firebaseio.com",
+      projectId: "proyek-anda",
+      storageBucket: "proyek-anda.appspot.com",
+      messagingSenderId: "1234567890",
+      appId: "1:1234567890:web:abcdef123456"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // Setup Track Nodes (Start, Pos 1-10)
+    const trackNodesContainer = document.getElementById('track-nodes');
+    const checkpointLabels = ["START", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "FINISH 🏁"];
+    
+    checkpointLabels.forEach((lbl, idx) => {
+      const node = document.createElement('div');
+      node.className = "flex flex-col items-center";
+      
+      let colorClass = "bg-slate-700 text-white";
+      if (idx === 0) colorClass = "bg-slate-600 text-white";
+      else if (idx <= 3) colorClass = "bg-cyan-600 text-cyan-100 ring-2 ring-cyan-400";
+      else if (idx <= 7) colorClass = "bg-emerald-600 text-emerald-100 ring-2 ring-emerald-400";
+      else if (idx < 10) colorClass = "bg-amber-600 text-amber-100 ring-2 ring-amber-400";
+      else colorClass = "bg-purple-600 text-yellow-300 ring-4 ring-yellow-400 animate-pulse";
+
+      node.innerHTML = `
+        <div class="w-10 h-10 rounded-full ${colorClass} flex items-center justify-center font-bold text-xs shadow-lg">
+          ${idx === 0 ? '🚩' : (idx === 10 ? '🏆' : '🏕️' + idx)}
+        </div>
+        <span class="text-[10px] mt-2 font-bold text-slate-300">${lbl}</span>
+      `;
+      trackNodesContainer.appendChild(node);
+    });
+
+    let finishedPlayersCache = new Set();
+
+    // Listen to Game State
+    db.ref('gameState').on('value', (snap) => {
+      const state = snap.val() || { status: 'lobby' };
+      const badge = document.getElementById('game-status-badge');
+      const btn = document.getElementById('btn-start');
+      
+      if (state.status === 'playing') {
+        badge.innerText = "Status: PERMAINAN BERJALAN";
+        badge.className = "bg-emerald-500/20 text-emerald-300 text-xs px-3 py-1 rounded-full font-bold border border-emerald-500/30";
+        btn.classList.add('opacity-50', 'pointer-events-none');
+      } else {
+        badge.innerText = "Status: LOBI TUNGGU";
+        badge.className = "bg-amber-500/20 text-amber-300 text-xs px-3 py-1 rounded-full font-bold border border-amber-500/30";
+        btn.classList.remove('opacity-50', 'pointer-events-none');
+      }
+    });
+
+    // Listen to Players Data (Leaderboard & Track Avatars)
+    db.ref('players').on('value', (snapshot) => {
+      const data = snapshot.val() || {};
+      const players = Object.entries(data).map(([id, val]) => ({ id, ...val }));
+
+      // 1. Update Leaderboard
+      const sorted = [...players].sort((a, b) => {
+        if (b.pos !== a.pos) return b.pos - a.pos;
+        return (a.finishTime || 9999999999) - (b.finishTime || 9999999999);
+      });
+
+      document.getElementById('player-count').innerText = `${players.length} Siswa`;
+      const listEl = document.getElementById('leaderboard-list');
+      listEl.innerHTML = "";
+
+      sorted.forEach((p, rank) => {
+        const isFinish = p.pos >= 10;
+        const div = document.createElement('div');
+        div.className = `p-3 rounded-xl flex items-center justify-between border ${isFinish ? 'bg-amber-950/40 border-amber-500/50' : 'bg-slate-700/50 border-slate-600'}`;
+        div.innerHTML = `
+          <div class="flex items-center gap-2 overflow-hidden">
+            <span class="font-black text-sm w-5 text-slate-400">#${rank + 1}</span>
+            <span class="text-xl">${p.avatar || '🦊'}</span>
+            <span class="font-bold text-sm truncate">${p.name}</span>
+          </div>
+          <span class="text-xs px-2 py-1 rounded font-black ${isFinish ? 'bg-amber-500 text-slate-950 animate-bounce' : 'bg-slate-600 text-slate-200'}">
+            ${isFinish ? 'FINISH 🏆' : 'Pos ' + p.pos}
+          </span>
+        `;
+        listEl.appendChild(div);
+
+        // Cek jika siswa baru saja finish -> Picu Confetti Guru
+        if (isFinish && !finishedPlayersCache.has(p.id)) {
+          finishedPlayersCache.add(p.id);
+          confetti({
+            particleCount: 120,
+            spread: 80,
+            origin: { y: 0.6 }
+          });
+        }
+      });
+
+      // 2. Render Avatars on Track Nodes
+      renderAvatarsOnTrack(players);
+    });
+
+    function renderAvatarsOnTrack(players) {
+      const avatarContainer = document.getElementById('avatar-container');
+      avatarContainer.innerHTML = "";
+
+      // Kelompokkan siswa berdasarkan pos (0 sampai 10)
+      const groups = {};
+      for (let i = 0; i <= 10; i++) groups[i] = [];
+      players.forEach(p => {
+        const pos = Math.min(Math.max(p.pos || 0, 0), 10);
+        groups[pos].push(p);
+      });
+
+      // Tempatkan avatar secara proporsional horizontal (0% s/d 100%)
+      for (let i = 0; i <= 10; i++) {
+        const group = groups[i];
+        if (group.length === 0) continue;
+
+        const leftPercent = (i / 10) * 100;
+        const col = document.createElement('div');
+        col.className = "absolute -translate-x-1/2 flex flex-col items-center gap-1 transition-all duration-500 ease-out";
+        col.style.left = `${leftPercent}%`;
+        col.style.top = "10px";
+
+        group.forEach(player => {
+          const badge = document.createElement('div');
+          badge.className = "flex items-center gap-1 bg-slate-900/90 text-white text-[11px] px-2 py-0.5 rounded-full border border-indigo-400 shadow-md";
+          badge.innerHTML = `<span>${player.avatar}</span><span class="font-medium max-w-[60px] truncate">${player.name.split(' ')[0]}</span>`;
+          col.appendChild(badge);
+        });
+
+        avatarContainer.appendChild(col);
+      }
+    }
+
+    function startGame() {
+      db.ref('gameState').set({
+        status: 'playing',
+        startedAt: firebase.database.ServerValue.TIMESTAMP
+      });
+    }
+
+    function resetGame() {
+      if (confirm("Reset ulang seluruh game dan pos siswa?")) {
+        finishedPlayersCache.clear();
+        db.ref().set({
+          gameState: { status: 'lobby' },
+          players: null
+        });
+      }
+    }
+  </script>
+</body>
+</html>

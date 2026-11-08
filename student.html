@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Penjelajah Sains - Mode Siswa</title>
+  <!-- Tailwind CSS & Confetti -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+  <!-- Firebase Compat CDN -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+  <!-- Bank Soal -->
+  <script src="questions.js"></script>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex flex-col font-sans select-none">
+
+  <!-- ================= SCREEN 1: LOGIN ================= -->
+  <div id="screen-login" class="flex-1 flex flex-col justify-center items-center p-6">
+    <div class="w-full max-w-sm bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-2xl text-center">
+      <div class="text-5xl mb-3">🏕️</div>
+      <h1 class="text-xl font-black text-amber-400 mb-1">PETUALANGAN SAINS</h1>
+      <p class="text-xs text-slate-400 mb-6">Masukkan identitas untuk masuk ke lintasan</p>
+
+      <form onsubmit="handleJoin(event)" class="space-y-4">
+        <div>
+          <label class="block text-left text-xs font-bold text-slate-300 mb-1">NAMA LENGKAP & NO ABSEN</label>
+          <input id="input-name" type="text" placeholder="Misal: Andi (04)" required
+                 class="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-400 text-white font-semibold">
+        </div>
+        <div>
+          <label class="block text-left text-xs font-bold text-slate-300 mb-1">PILIH AVATAR PETUALANG</label>
+          <div class="flex justify-around bg-slate-900 p-2 rounded-xl border border-slate-700 text-2xl" id="avatar-picker">
+            <button type="button" onclick="selectAvatar('🦊')" class="avatar-opt p-2 rounded-lg bg-slate-700 border-2 border-amber-400">🦊</button>
+            <button type="button" onclick="selectAvatar('🦁')" class="avatar-opt p-2 rounded-lg">🦁</button>
+            <button type="button" onclick="selectAvatar('🐼')" class="avatar-opt p-2 rounded-lg">🐼</button>
+            <button type="button" onclick="selectAvatar('🚀')" class="avatar-opt p-2 rounded-lg">🚀</button>
+            <button type="button" onclick="selectAvatar('🦉')" class="avatar-opt p-2 rounded-lg">🦉</button>
+          </div>
+        </div>
+        <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl shadow-lg transition active:scale-95">
+          MASUK KE LOBI 🏁
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= SCREEN 2: WAITING LOBBY ================= -->
+  <div id="screen-lobby" class="hidden flex-1 flex flex-col justify-center items-center p-6 text-center">
+    <div class="w-full max-w-sm bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-2xl flex flex-col items-center">
+      <div id="lobby-avatar" class="text-6xl mb-4 animate-bounce">🦊</div>
+      <h2 id="lobby-name" class="text-lg font-black text-white">Siswa</h2>
+      <p class="text-xs text-emerald-400 font-bold mt-1">Kamu sudah terdaftar!</p>
+      
+      <div class="mt-8 p-4 bg-slate-900/80 rounded-2xl border border-slate-700 w-full flex flex-col items-center gap-3">
+        <div class="animate-spin text-3xl">🧭</div>
+        <p class="text-xs text-slate-300 font-medium">Menunggu Guru menekan tombol <b>"Mulai Petualangan"</b> di proyektor...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SCREEN 3: GAMEPLAY AKTIF ================= -->
+  <div id="screen-game" class="hidden flex-1 flex flex-col justify-between p-4 max-w-md mx-auto w-full">
+    
+    <!-- Top Status Bar -->
+    <div class="bg-slate-800 p-3 rounded-2xl border border-slate-700 flex justify-between items-center shadow-md">
+      <div class="flex items-center gap-2">
+        <span id="player-avatar-badge" class="text-2xl">🦊</span>
+        <div>
+          <h3 id="player-name-badge" class="font-bold text-xs leading-none">Andi</h3>
+          <span id="player-bab-badge" class="text-[10px] text-cyan-400 font-semibold">Bab 1</span>
+        </div>
+      </div>
+      <div class="text-right">
+        <div class="text-[10px] text-slate-400 font-bold uppercase">Lokasi Kamu</div>
+        <div id="player-pos-badge" class="text-base font-black text-amber-400">TENDA POS 1</div>
+      </div>
+    </div>
+
+    <!-- Question Card -->
+    <div id="quiz-container" class="my-auto bg-slate-800 p-5 rounded-3xl border border-slate-700 shadow-xl">
+      <div class="flex justify-between items-center mb-3">
+        <span id="pos-indicator" class="bg-amber-400/20 text-amber-300 text-xs font-black px-2.5 py-1 rounded-full border border-amber-400/30">Pos 1/10</span>
+        <span id="retry-badge" class="hidden bg-rose-500/20 text-rose-300 text-[10px] font-bold px-2 py-0.5 rounded">Soal Dirotasi! 🔄</span>
+      </div>
+      <h2 id="question-text" class="text-base font-bold text-slate-100 leading-snug mb-5">
+        Pertanyaan akan muncul di sini...
+      </h2>
+
+      <!-- Answer Choices -->
+      <div id="options-container" class="space-y-2.5">
+        <!-- Render opsi A, B, C, D otomatis -->
+      </div>
+    </div>
+
+    <!-- Mini Obstacle Modal Overlay -->
+    <div id="obstacle-modal" class="hidden fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex flex-col justify-center items-center p-6 text-center">
+      <div class="w-full max-w-xs bg-slate-800 p-6 rounded-3xl border-2 border-rose-500 shadow-2xl flex flex-col items-center">
+        <div id="obstacle-icon" class="text-5xl mb-2 animate-pulse">🌪️</div>
+        <h3 id="obstacle-title" class="text-lg font-black text-rose-400 mb-1">ANGIN KENCANG!</h3>
+        <p id="obstacle-desc" class="text-xs text-slate-300 mb-5">Ketuk tombol secepat mungkin untuk menembus rintangan!</p>
+        
+        <!-- Progress Bar Obstacle -->
+        <div class="w-full bg-slate-900 rounded-full h-4 mb-5 p-0.5 border border-slate-700">
+          <div id="obstacle-progress" class="bg-rose-500 h-full rounded-full transition-all duration-100" style="width: 0%"></div>
+        </div>
+
+        <button onclick="handleObstacleTap()" class="w-full bg-rose-600 active:bg-rose-500 text-white font-black py-4 rounded-2xl shadow-lg transform active:scale-90 transition">
+          KETUK CEPAT! ⚡
+        </button>
+      </div>
+    </div>
+
+    <!-- Finish Celebration Screen -->
+    <div id="finish-card" class="hidden my-auto bg-slate-800 p-8 rounded-3xl border-2 border-amber-400 shadow-2xl text-center">
+      <div class="text-6xl mb-3 animate-bounce">🏆</div>
+      <h2 class="text-2xl font-black text-amber-400 mb-2">LUAR BIASA! FINISH!</h2>
+      <p class="text-xs text-slate-300 leading-relaxed mb-4">
+        Kamu telah berhasil melewati seluruh pos dan menaklukkan semua rintangan sains!
+      </p>
+      <div class="bg-slate-900 p-3 rounded-xl border border-slate-700 font-bold text-sm text-emerald-400">
+        Silakan lihat posisi akhirmu di Layar Proyektor Guru!
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // ================== FIREBASE CONFIGURATION ==================
+    // SAMAKAN DENGAN YANG ADA DI TEACHER.HTML
+    const firebaseConfig = {
+      apiKey: "AIzaSyD-CONTOH-KEY-ANDA",
+      authDomain: "proyek-anda.firebaseapp.com",
+      databaseURL: "https://proyek-anda-default-rtdb.firebaseio.com",
+      projectId: "proyek-anda",
+      storageBucket: "proyek-anda.appspot.com",
+      messagingSenderId: "1234567890",
+      appId: "1:1234567890:web:abcdef123456"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let myPlayerId = localStorage.getItem('sains_player_id') || ('p_' + Math.random().toString(36).substring(2, 9));
+    localStorage.setItem('sains_player_id', myPlayerId);
+
+    let selectedAvatar = '🦊';
+    let currentPos = 0;
+    let currentQuestion = null;
+    let answeredQuestions = new Set();
+    let obstacleClicks = 0;
+    const OBSTACLE_TARGET = 5; // Cukup 5x tap cepat
+
+    function selectAvatar(char) {
+      selectedAvatar = char;
+      document.querySelectorAll('.avatar-opt').forEach(btn => {
+        btn.classList.remove('bg-slate-700', 'border-2', 'border-amber-400');
+        if (btn.innerText === char) btn.classList.add('bg-slate-700', 'border-2', 'border-amber-400');
+      });
+    }
+
+    function handleJoin(e) {
+      e.preventDefault();
+      const name = document.getElementById('input-name').value.trim();
+      if (!name) return;
+
+      db.ref('players/' + myPlayerId).set({
+        name: name,
+        avatar: selectedAvatar,
+        pos: 0,
+        status: 'lobby'
+      });
+
+      document.getElementById('lobby-name').innerText = name;
+      document.getElementById('lobby-avatar').innerText = selectedAvatar;
+      document.getElementById('screen-login').classList.add('hidden');
+      document.getElementById('screen-lobby').classList.remove('hidden');
+    }
+
+    // Pantau Status Game Global (Trigger Guru)
+    db.ref('gameState/status').on('value', (snap) => {
+      const status = snap.val();
+      if (status === 'playing') {
+        // Cek jika siswa sudah register
+        db.ref('players/' + myPlayerId).once('value', (pSnap) => {
+          if (pSnap.exists()) {
+            document.getElementById('screen-lobby').classList.add('hidden');
+            document.getElementById('screen-game').classList.remove('hidden');
+            
+            const pData = pSnap.val();
+            currentPos = pData.pos || 0;
+            document.getElementById('player-name-badge').innerText = pData.name;
+            document.getElementById('player-avatar-badge').innerText = pData.avatar;
+            loadPosQuestion();
+          }
+        });
+      } else if (status === 'lobby' || !status) {
+        // Game di-reset oleh guru
+        document.getElementById('screen-game').classList.add('hidden');
+        document.getElementById('screen-login').classList.remove('hidden');
+        answeredQuestions.clear();
+      }
+    });
+
+    // Ambil Soal Sesuai Pos & Bab
+    function loadPosQuestion() {
+      if (currentPos >= 10) {
+        // Selesai Permainan
+        document.getElementById('quiz-container').classList.add('hidden');
+        document.getElementById('finish-card').classList.remove('hidden');
+        document.getElementById('player-pos-badge').innerText = "FINISH 🏁";
+        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+        return;
+      }
+
+      // Tentukan Bab berdasarkan Pos (1-3: Bab 1, 4-7: Bab 2, 8-10: Bab 3)
+      const targetPos = currentPos + 1; // Menuju pos berikutnya
+      let babKey = 'bab1';
+      let babTitle = 'Bab 1: Cahaya & Bunyi';
+      
+      if (targetPos >= 4 && targetPos <= 7) {
+        babKey = 'bab2';
+        babTitle = 'Bab 2: Ekosistem';
+      } else if (targetPos >= 8) {
+        babKey = 'bab3';
+        babTitle = 'Bab 3: Magnet & Listrik';
+      }
+
+      document.getElementById('player-bab-badge').innerText = babTitle;
+      document.getElementById('pos-indicator').innerText = `Menuju Pos ${targetPos}/10`;
+      document.getElementById('player-pos-badge').innerText = `Pos ${currentPos}`;
+
+      // Ambil soal dari bab terkait yang belum dijawab
+      const pool = QUESTION_BANK[babKey].filter(q => !answeredQuestions.has(q.id));
+      const activePool = pool.length > 0 ? pool : QUESTION_BANK[babKey]; // Fallback jika bank bab habis
+      currentQuestion = activePool[Math.floor(Math.random() * activePool.length)];
+
+      renderQuestion(currentQuestion);
+    }
+
+    function renderQuestion(q) {
+      document.getElementById('question-text').innerText = q.q;
+      const optsContainer = document.getElementById('options-container');
+      optsContainer.innerHTML = "";
+
+      const labels = ['A', 'B', 'C', 'D'];
+      q.a.forEach((optText, idx) => {
+        const btn = document.createElement('button');
+        btn.className = "w-full text-left p-3.5 rounded-2xl bg-slate-700/60 hover:bg-slate-700 active:bg-indigo-600 border border-slate-600 transition flex items-center gap-3";
+        btn.innerHTML = `
+          <span class="w-7 h-7 rounded-lg bg-slate-800 text-amber-400 font-bold flex items-center justify-center text-xs shrink-0">${labels[idx]}</span>
+          <span class="text-xs font-semibold leading-relaxed">${optText}</span>
+        `;
+        btn.onclick = () => handleAnswer(idx);
+        optsContainer.appendChild(btn);
+      });
+    }
+
+    function handleAnswer(selectedIdx) {
+      if (selectedIdx === currentQuestion.c) {
+        // BENAR!
+        answeredQuestions.add(currentQuestion.id);
+        document.getElementById('retry-badge').classList.add('hidden');
+        
+        // Cek Obstacle di sela-sela pos tertentu (Misal sebelum Pos 3, 6, dan 9)
+        const nextPos = currentPos + 1;
+        if (nextPos === 3 || nextPos === 6 || nextPos === 9) {
+          triggerObstacle(nextPos);
+        } else {
+          advancePosition(nextPos);
+        }
+      } else {
+        // SALAH! Sistem merotasi pertanyaan dari bab terkait secara otomatis
+        document.getElementById('retry-badge').classList.remove('hidden');
+        loadPosQuestion();
+      }
+    }
+
+    // Mekanisme Rintangan Mini (Obstacle)
+    function triggerObstacle(nextPos) {
+      obstacleClicks = 0;
+      document.getElementById('obstacle-progress').style.width = '0%';
+      const modal = document.getElementById('obstacle-modal');
+      const title = document.getElementById('obstacle-title');
+      const icon = document.getElementById('obstacle-icon');
+
+      if (nextPos === 3) {
+        icon.innerText = "🌪️";
+        title.innerText = "ANGIN KENCANG!";
+      } else if (nextPos === 6) {
+        icon.innerText = "🪵";
+        title.innerText = "LUMPUR HISAP!";
+      } else {
+        icon.innerText = "⚡";
+        title.innerText = "PETIR MENYAMBAR!";
+      }
+
+      modal.classList.remove('hidden');
+      window.pendingNextPos = nextPos;
+    }
+
+    function handleObstacleTap() {
+      obstacleClicks++;
+      const percent = Math.min((obstacleClicks / OBSTACLE_TARGET) * 100, 100);
+      document.getElementById('obstacle-progress').style.width = `${percent}%`;
+
+      if (obstacleClicks >= OBSTACLE_TARGET) {
+        setTimeout(() => {
+          document.getElementById('obstacle-modal').classList.add('hidden');
+          advancePosition(window.pendingNextPos);
+        }, 200);
+      }
+    }
+
+    function advancePosition(newPos) {
+      currentPos = newPos;
+      const updateData = { pos: currentPos };
+      if (currentPos >= 10) {
+        updateData.finishTime = firebase.database.ServerValue.TIMESTAMP;
+      }
+      db.ref('players/' + myPlayerId).update(updateData);
+      loadPosQuestion();
+    }
+  </script>
+</body>
+</html>
